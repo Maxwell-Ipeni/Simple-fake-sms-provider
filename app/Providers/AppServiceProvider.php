@@ -13,7 +13,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        // Bind the SmsCallbackService implementation for injection
+        $this->app->bind(\App\Services\SmsCallbackServiceInterface::class, function ($app) {
+            return new \App\Services\SmsCallbackService();
+        });
     }
 
     /**
