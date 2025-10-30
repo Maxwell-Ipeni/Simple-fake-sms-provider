@@ -1,9 +1,10 @@
 <?php
 
-use GuzzleHttp\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache as FacadesCache;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 /*
 |--------------------------------------------------------------------------
@@ -21,40 +22,111 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 });
 
 Route::post('/send-message', function(Request $request){
-    $data = FacadesCache::get("data");
-    
-    $message = array();
-    $message['sender'] = 0;
-    $message['content'] = $request->text;
+    // Validate input: text required, number optional (inferred from last message)
+    $payload = $request->only(['text', 'number']);
 
-    $previousMessage = $data[count($data) - 1];
-    $message['number'] = $previousMessage['number'];
+    $validator = validator($payload, [
+        'text' => ['required', 'string'],
+        'number' => ['nullable', 'string'],
+    ]);
 
-    $client = new Client();
-    $client->request('POST', "http://127.0.0.1:8000/receive-sms", $message);
+    if ($validator->fails()) {
+        return response()->json(['error' => 'Validation failed', 'details' => $validator->errors()], 422);
+    }
 
-    FacadesCache::put('data', $data, now()->addDays(1));
+    $messages = FacadesCache::get('messages');
+    if (!is_array($messages)) {
+        $messages = [];
+    }
 
-    return response("success", 200);
+    // If number not provided, infer from last message
+    $number = $payload['number'] ?? null;
+    if (empty($number)) {
+        $last = end($messages);
+        if ($last && isset($last['number'])) {
+            $number = $last['number'];
+        }
+    }
+
+    if (empty($number)) {
+        return response()->json(['error' => 'number is required either in payload or as last known message'], 422);
+    }
+
+    $message = [
+        'number' => (string) $number,
+        'content' => (string) $payload['text'],
+        'sender' => 0, // provider
+        'timestamp' => now()->toIso8601String(),
+    ];
+
+    // append and trim to max messages
+    $messages[] = $message;
+    $max = (int) config('fake_sms.max_messages', 500);
+    if (count($messages) > $max) {
+        $messages = array_slice($messages, -1 * $max);
+    }
+
+    FacadesCache::put('messages', $messages, now()->addDays(1));
+
+    // Send callback to configured URL using the injected SmsCallbackService
+    $callbackService = app(\App\Services\SmsCallbackServiceInterface::class);
+
+    $result = $callbackService->sendCallback([
+        'number' => $message['number'],
+        'text' => $message['content'],
+        'provider' => 'fake-sms',
+        'timestamp' => $message['timestamp'],
+    ]);
+
+    $resp = ['status' => 'ok', 'delivered' => (bool) ($result['delivered'] ?? false)];
+    if (!empty($result['error'])) {
+        $resp['error'] = $result['error'];
+    }
+
+    return response()->json($resp, 200);
 });
 
 Route::post('/get-message', function(Request $request){
-    $data = FacadesCache::get("data");
+    $payload = $request->only(['number', 'text']);
 
-    $message = array();
-    $message['sender'] = 1;
-    $message['content'] = $request->text;
-    $message['number'] = $request->number;
+    $validator = validator($payload, [
+        'number' => ['required', 'string'],
+        'text' => ['required', 'string'],
+    ]);
 
-    array_push($data, $message);
+    if ($validator->fails()) {
+        return response()->json(['error' => 'Validation failed', 'details' => $validator->errors()], 422);
+    }
 
-    FacadesCache::put('data', $data, now()->addDays(1));
+    $messages = FacadesCache::get('messages');
+    if (!is_array($messages)) {
+        $messages = [];
+    }
 
-    return response("success", 200);
+    $message = [
+        'number' => (string) $payload['number'],
+        'content' => (string) $payload['text'],
+        'sender' => 1, // user
+        'timestamp' => now()->toIso8601String(),
+    ];
+
+    $messages[] = $message;
+    $max = (int) config('fake_sms.max_messages', 500);
+    if (count($messages) > $max) {
+        $messages = array_slice($messages, -1 * $max);
+    }
+
+    FacadesCache::put('messages', $messages, now()->addDays(1));
+
+    return response()->json(['status' => 'ok'], 200);
 });
 
 Route::get('/cache-watch', function(Request $request){
-    $data = FacadesCache::get("data");
-    FacadesCache::put('message', $data, now()->addDays(1));
-    return FacadesCache::get("data");
+    $messages = FacadesCache::get('messages');
+    if (!is_array($messages)) {
+        $messages = [];
+        FacadesCache::put('messages', $messages, now()->addDays(1));
+    }
+
+    return response()->json(['messages' => $messages], 200);
 });
