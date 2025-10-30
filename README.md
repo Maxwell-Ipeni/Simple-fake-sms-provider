@@ -7,6 +7,9 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://poser.pugx.org/laravel/framework/license.svg" alt="License"></a>
 </p>
 
+> Note: This repository contains an example environment file at `.env.example`. After cloning run `cp .env.example .env` (or let Composer create `.env` on install). Edit `.env` to customize local settings (see FAKE_SMS_* entries below).
+
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
@@ -59,3 +62,37 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Fake SMS Provider
+
+This repository includes a small fake SMS provider for local testing. It stores messages in the application cache and can simulate callbacks to an external endpoint.
+
+Environment
+- Add the following to your `.env` (or use `.env.example`):
+
+```
+FAKE_SMS_CALLBACK_URL=http://127.0.0.1:8000/receive-sms
+FAKE_SMS_MAX_MESSAGES=500
+```
+
+Routes
+- POST /api/get-message  - simulate receiving an SMS (expects JSON { number, text })
+- POST /api/send-message - simulate provider sending an SMS (expects JSON { text, number? })
+- GET  /api/cache-watch  - returns { messages: [...] }
+
+Examples
+- Receive a message (user -> provider):
+
+```
+curl -X POST http://localhost:8000/api/get-message -H "Content-Type: application/json" -d "{\"number\":\"233555000111\",\"text\":\"Hello\"}"
+```
+
+- Send a provider message (provider -> callback):
+
+```
+curl -X POST http://localhost:8000/api/send-message -H "Content-Type: application/json" -d "{\"number\":\"233555000111\",\"text\":\"Reply from provider\"}"
+```
+
+Web UI
+- Visit `http://localhost:8000/` to see a minimal dashboard and forms to interact with the API.
+
