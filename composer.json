@@ -54,7 +54,7 @@
             "@php artisan package:discover --ansi"
         ],
         "post-root-package-install": [
-            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+            "@php -r \"if (!file_exists('.env')) { if (file_exists('.env.example')) { copy('.env.example', '.env'); echo 'Created .env from .env.example\n'; } else { echo '.env not found and .env.example not present; please create .env manually\n'; } }\""
         ],
         "post-create-project-cmd": [
             "@php artisan key:generate --ansi"
