@@ -12,4 +12,6 @@ const mix = require('laravel-mix');
  */
 
 mix.js('resources/js/app.js', 'public/js')
-    .sass('resources/sass/app.scss', 'public/css');
+    .sass('resources/sass/app.scss', 'public/css')
+    // compile fake-sms CSS into public (optional - run `npm run dev` to compile)
+    .styles('resources/css/fake-sms.css', 'public/css/fake-sms.css');
