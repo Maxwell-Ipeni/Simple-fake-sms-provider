@@ -53922,6 +53922,7 @@ function FakeSms() {
             return r.json();
           case 2:
             j = _context.v;
+            console.debug('cache-watch payload', j);
             setMessages(j.messages || []);
             setCacheCount((_j$count2 = j.count) !== null && _j$count2 !== void 0 ? _j$count2 : j.messages ? j.messages.length : 0);
             _context.n = 4;
@@ -53949,6 +53950,10 @@ function FakeSms() {
             num = '+123456' + Math.floor(Math.random() * 900 + 100);
             text = 'Received! ' + ['We\'re here to help.', 'Hello!', 'Thanks, got it.'][Math.floor(Math.random() * 3)];
             _context2.p = 1;
+            console.debug('trigger sending', {
+              number: num,
+              text: text
+            });
             _context2.n = 2;
             return fetch('/api/get-message', {
               method: 'POST',
@@ -53967,6 +53972,7 @@ function FakeSms() {
             return res.json();
           case 4:
             j = _context2.v;
+            console.debug('/api/get-message response', j);
             if (!(j && j.message)) {
               _context2.n = 5;
               break;
@@ -53986,6 +53992,10 @@ function FakeSms() {
             setCacheCount(function (c) {
               return (c || 0) + 1;
             });
+            // always schedule a refresh shortly after to reconcile with server cache
+            setTimeout(function () {
+              refresh()["catch"](function () {});
+            }, 300);
             _context2.n = 6;
             break;
           case 5:
@@ -54020,7 +54030,7 @@ function FakeSms() {
       // polling fallback: lower frequency to reduce client/server load
       var t = setInterval(function () {
         return refresh();
-      }, 10000);
+      }, 20000);
       return function () {
         clearInterval(t);
       };
@@ -54079,7 +54089,7 @@ function FakeSms() {
         // increase auto-trigger interval to reduce request rate
         autoRef.current = setInterval(function () {
           trigger()["catch"](function () {});
-        }, 15000);
+        }, 30000);
       }
     } else {
       if (autoRef.current) {

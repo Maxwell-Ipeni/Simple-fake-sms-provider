@@ -24,6 +24,7 @@ export default function FakeSms(){
     try{
       const r = await fetch('/api/cache-watch');
       const j = await r.json();
+      console.debug('cache-watch payload', j);
       setMessages(j.messages || []);
       setCacheCount(j.count ?? (j.messages ? j.messages.length : 0));
     }catch(e){ console.error(e) }
@@ -33,10 +34,12 @@ export default function FakeSms(){
     const num = '+123456' + Math.floor(Math.random()*900 + 100);
     const text = 'Received! ' + ['We\'re here to help.','Hello!','Thanks, got it.'][Math.floor(Math.random()*3)];
     try{
+      console.debug('trigger sending', {number: num, text});
       const res = await fetch('/api/get-message', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number:num,text:text})});
       // try to read the created message and update UI optimistically
       try{
         const j = await res.json();
+        console.debug('/api/get-message response', j);
         if (j && j.message) {
           // prepend the new message to current messages state
           setMessages(prev => {
@@ -51,6 +54,8 @@ export default function FakeSms(){
             });
           });
           setCacheCount(c => (c || 0) + 1);
+          // always schedule a refresh shortly after to reconcile with server cache
+          setTimeout(()=>{ refresh().catch(()=>{}); }, 300);
         } else {
           await refresh();
         }
@@ -63,7 +68,7 @@ export default function FakeSms(){
     refresh();
     if (!sseActive){
       // polling fallback: lower frequency to reduce client/server load
-      const t = setInterval(()=>refresh(), 10000);
+      const t = setInterval(()=>refresh(), 20000);
       return ()=>{ clearInterval(t); };
     }
     // when SSE is active we rely on push updates
@@ -106,7 +111,7 @@ export default function FakeSms(){
     if(autoTrigger){
       if(!autoRef.current){
         // increase auto-trigger interval to reduce request rate
-        autoRef.current = setInterval(()=>{ trigger().catch(()=>{}); }, 15000);
+        autoRef.current = setInterval(()=>{ trigger().catch(()=>{}); }, 30000);
       }
     } else {
       if(autoRef.current){ clearInterval(autoRef.current); autoRef.current = null }
