@@ -56,7 +56,11 @@
 
         /* responsive */
         @media (max-width:900px){main{grid-template-columns:1fr}}
-    <link rel="stylesheet" href="{{ asset('css/fake-sms.css') }}">
+    @if (file_exists(public_path('mix-manifest.json')))
+        <link rel="stylesheet" href="{{ mix('css/fake-sms.css') }}">
+    @else
+        <link rel="stylesheet" href="{{ asset('css/fake-sms.css') }}">
+    @endif
 </head>
 <body>
 <div id="app">
@@ -68,6 +72,59 @@
     <div>Cache Size: <span id="cacheSize">0</span> entries</div>
 </footer>
 
-    <script src="{{ mix('js/app.js') }}"></script>
+    @if (file_exists(public_path('mix-manifest.json')))
+        <script src="{{ mix('js/app.js') }}"></script>
+    @elseif (file_exists(public_path('js/app.js')))
+        <script src="{{ asset('js/app.js') }}"></script>
+    @else
+        <script>
+        // Minimal runtime fallback: renders a simple message list and polls /api/cache-watch
+        (function(){
+            function qs(sel, ctx){ return (ctx||document).querySelector(sel); }
+            function qce(tag, cls){ var e=document.createElement(tag); if(cls) e.className=cls; return e; }
+            var app = document.getElementById('app');
+            // simple fallback UI container
+            var wrapper = qce('div','panel');
+            var title = qce('h4'); title.innerText = 'SMS Simulator (fallback)';
+            wrapper.appendChild(title);
+
+            var controls = qce('div');
+            controls.style.display = 'flex'; controls.style.gap = '8px'; controls.style.alignItems = 'center';
+            var refresh = qce('button','trigger'); refresh.innerText = 'Refresh';
+            controls.appendChild(refresh);
+            wrapper.appendChild(controls);
+
+            var list = qce('div'); list.id = 'fallbackMessages'; list.style.marginTop = '12px';
+            wrapper.appendChild(list);
+            app.innerHTML = '';
+            app.appendChild(wrapper);
+
+            function timeFormat(ts){ try{ return new Date(ts).toLocaleString(); } catch(e) { return ts; } }
+
+            function render(messages){
+                list.innerHTML = '';
+                if(!messages || messages.length===0){ list.innerText = 'No messages'; return; }
+                messages.forEach(function(m){
+                    var item = qce('div','message');
+                    var left = qce('div','m-left');
+                    var to = qce('div','to'); to.innerText = 'Number: ' + (m.number||'');
+                    var content = qce('div','content'); content.innerText = m.content || '';
+                    var from = qce('div','from'); from.innerText = (m.sender==0? 'Provider' : 'User') + ' • ' + timeFormat(m.timestamp);
+                    left.appendChild(to); left.appendChild(content); left.appendChild(from);
+                    item.appendChild(left);
+                    list.appendChild(item);
+                });
+            }
+
+            function load(){
+                fetch('/api/cache-watch').then(function(r){ return r.json(); }).then(function(json){ render(json.messages||[]); }).catch(function(e){ console.error(e); list.innerText = 'Could not load messages'; });
+            }
+
+            refresh.addEventListener('click', load);
+            load();
+            setInterval(load, 3000);
+        })();
+        </script>
+    @endif
 </body>
 </html>
