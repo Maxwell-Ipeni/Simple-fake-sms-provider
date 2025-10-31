@@ -33,8 +33,28 @@ export default function FakeSms(){
     const num = '+123456' + Math.floor(Math.random()*900 + 100);
     const text = 'Received! ' + ['We\'re here to help.','Hello!','Thanks, got it.'][Math.floor(Math.random()*3)];
     try{
-      await fetch('/api/get-message', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number:num,text:text})});
-      await refresh();
+      const res = await fetch('/api/get-message', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number:num,text:text})});
+      // try to read the created message and update UI optimistically
+      try{
+        const j = await res.json();
+        if (j && j.message) {
+          // prepend the new message to current messages state
+          setMessages(prev => {
+            const combined = [j.message, ...(prev || [])];
+            // dedupe by timestamp+number to avoid duplicates when poll/SSE updates
+            const seen = new Set();
+            return combined.filter(m => {
+              const k = (m.timestamp||'') + '::' + (m.number||'');
+              if (seen.has(k)) return false;
+              seen.add(k);
+              return true;
+            });
+          });
+          setCacheCount(c => (c || 0) + 1);
+        } else {
+          await refresh();
+        }
+      }catch(e){ console.warn('Could not parse /get-message response, falling back to refresh', e); await refresh(); }
     }catch(e){ console.error(e) }
   }
 
@@ -42,7 +62,8 @@ export default function FakeSms(){
   useEffect(()=>{
     refresh();
     if (!sseActive){
-      const t = setInterval(()=>refresh(), 2500);
+      // polling fallback: lower frequency to reduce client/server load
+      const t = setInterval(()=>refresh(), 10000);
       return ()=>{ clearInterval(t); };
     }
     // when SSE is active we rely on push updates
@@ -84,7 +105,8 @@ export default function FakeSms(){
   useEffect(()=>{
     if(autoTrigger){
       if(!autoRef.current){
-        autoRef.current = setInterval(()=>{ trigger().catch(()=>{}); }, 5000);
+        // increase auto-trigger interval to reduce request rate
+        autoRef.current = setInterval(()=>{ trigger().catch(()=>{}); }, 15000);
       }
     } else {
       if(autoRef.current){ clearInterval(autoRef.current); autoRef.current = null }

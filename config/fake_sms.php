@@ -15,5 +15,7 @@ return [
     // maximum number of messages to keep in cache
     'max_messages' => env('FAKE_SMS_MAX_MESSAGES', 500),
     // how many messages to return in watch/sse responses (0 = no limit)
-    'watch_limit' => env('FAKE_SMS_WATCH_LIMIT', 50),
+    // number of most-recent messages returned to clients on watch/SSE
+    // default lowered to reduce payload size and speed up updates
+    'watch_limit' => env('FAKE_SMS_WATCH_LIMIT', 20),
 ];

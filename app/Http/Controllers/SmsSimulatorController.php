@@ -191,8 +191,8 @@ class SmsSimulatorController extends Controller
                     break;
                 }
 
-                // small sleep to avoid busy loop
-                sleep(1);
+                // small sleep to avoid busy loop — increased to reduce CPU cost per connection
+                sleep(2);
             }
         }, 200, [
             'Content-Type' => 'text/event-stream',

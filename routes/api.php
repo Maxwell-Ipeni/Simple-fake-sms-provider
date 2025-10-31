@@ -64,7 +64,8 @@ Route::post('/get-message', function(Request $request){
     if (count($all) > $max) { $all = array_slice($all, -1 * $max); }
     FacadesCache::put($allKey, $all, now()->addDays(1));
 
-    return response()->json(['status' => 'ok'], 200);
+    // Return the created message so clients can optimistically update without waiting for next poll/SSE
+    return response()->json(['status' => 'ok', 'message' => $message], 200);
 });
 
 Route::get('/cache-watch', [SmsSimulatorController::class, 'watchCache']);

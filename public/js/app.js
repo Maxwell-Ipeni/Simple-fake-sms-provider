@@ -53942,7 +53942,7 @@ function FakeSms() {
   } // basic refresh + polling fallback (only enabled when SSE is not active)
   function _trigger() {
     _trigger = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2() {
-      var num, text, _t2;
+      var num, text, res, j, _t2, _t3;
       return _regenerator().w(function (_context2) {
         while (1) switch (_context2.p = _context2.n) {
           case 0:
@@ -53961,28 +53961,66 @@ function FakeSms() {
               })
             });
           case 2:
-            _context2.n = 3;
-            return refresh();
-          case 3:
-            _context2.n = 5;
-            break;
+            res = _context2.v;
+            _context2.p = 3;
+            _context2.n = 4;
+            return res.json();
           case 4:
-            _context2.p = 4;
-            _t2 = _context2.v;
-            console.error(_t2);
+            j = _context2.v;
+            if (!(j && j.message)) {
+              _context2.n = 5;
+              break;
+            }
+            // prepend the new message to current messages state
+            setMessages(function (prev) {
+              var combined = [j.message].concat(_toConsumableArray(prev || []));
+              // dedupe by timestamp+number to avoid duplicates when poll/SSE updates
+              var seen = new Set();
+              return combined.filter(function (m) {
+                var k = (m.timestamp || '') + '::' + (m.number || '');
+                if (seen.has(k)) return false;
+                seen.add(k);
+                return true;
+              });
+            });
+            setCacheCount(function (c) {
+              return (c || 0) + 1;
+            });
+            _context2.n = 6;
+            break;
           case 5:
+            _context2.n = 6;
+            return refresh();
+          case 6:
+            _context2.n = 8;
+            break;
+          case 7:
+            _context2.p = 7;
+            _t2 = _context2.v;
+            console.warn('Could not parse /get-message response, falling back to refresh', _t2);
+            _context2.n = 8;
+            return refresh();
+          case 8:
+            _context2.n = 10;
+            break;
+          case 9:
+            _context2.p = 9;
+            _t3 = _context2.v;
+            console.error(_t3);
+          case 10:
             return _context2.a(2);
         }
-      }, _callee2, null, [[1, 4]]);
+      }, _callee2, null, [[3, 7], [1, 9]]);
     }));
     return _trigger.apply(this, arguments);
   }
   Object(react__WEBPACK_IMPORTED_MODULE_0__["useEffect"])(function () {
     refresh();
     if (!sseActive) {
+      // polling fallback: lower frequency to reduce client/server load
       var t = setInterval(function () {
         return refresh();
-      }, 2500);
+      }, 10000);
       return function () {
         clearInterval(t);
       };
@@ -54038,9 +54076,10 @@ function FakeSms() {
   Object(react__WEBPACK_IMPORTED_MODULE_0__["useEffect"])(function () {
     if (autoTrigger) {
       if (!autoRef.current) {
+        // increase auto-trigger interval to reduce request rate
         autoRef.current = setInterval(function () {
           trigger()["catch"](function () {});
-        }, 5000);
+        }, 15000);
       }
     } else {
       if (autoRef.current) {
