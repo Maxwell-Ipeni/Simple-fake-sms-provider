@@ -56,6 +56,7 @@
 
         /* responsive */
         @media (max-width:900px){main{grid-template-columns:1fr}}
+        </style>
     @if (file_exists(public_path('mix-manifest.json')))
         <link rel="stylesheet" href="{{ mix('css/fake-sms.css') }}">
     @else
@@ -63,9 +64,7 @@
     @endif
 </head>
 <body>
-<div id="app">
-  <fake-sms></fake-sms>
-</div>
+<div id="app"></div>
 
 <footer class="status">
     <div style="display:flex;align-items:center"><div class="dot"></div>System Status: <span style="margin-left:8px">Running</span></div>

@@ -14,4 +14,6 @@ return [
     'callback_url' => env('FAKE_SMS_CALLBACK_URL', 'http://127.0.0.1:8000/receive-sms'),
     // maximum number of messages to keep in cache
     'max_messages' => env('FAKE_SMS_MAX_MESSAGES', 500),
+    // how many messages to return in watch/sse responses (0 = no limit)
+    'watch_limit' => env('FAKE_SMS_WATCH_LIMIT', 50),
 ];

@@ -1,14 +1,9 @@
+// Minimal JS entry: load bootstrap and the React app entry.
+// This avoids pulling Vue into the build (the project uses a React component at resources/js/app.jsx).
 require('./bootstrap');
 
-// Vue setup
-window.Vue = require('vue');
+// Ensure the main stylesheet is included by the build
+try { require('../css/fake-sms.css'); } catch (e) { }
 
-// import global fake-sms css so mix picks it up if desired
-try{ require('../css/fake-sms.css'); }catch(e){}
-
-// register component
-Vue.component('fake-sms', require('./components/FakeSms.vue').default);
-
-const app = new Vue({
-	el: '#app'
-});
+// Load the React entry which mounts into #app when present
+try { require('./app.jsx'); } catch (e) { console.error('Failed to load React entry', e); }

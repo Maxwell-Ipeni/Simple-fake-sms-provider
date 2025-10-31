@@ -64,23 +64,15 @@
         </style>
     </head>
     <body>
-<body>
-    <h1>Messaging</h1>
-    <div id="cache-value">Loading...</div>
+        <div id="app"></div>
 
-    <script>
-        async function fetchCache() {
-            try {
-                const res = await fetch('/api/cache-watch');
-                const text = await res.text();
-                document.getElementById('cache-value').textContent = text;
-            } catch (e) {
-                console.error('Error fetching cache:', e);
-            }
-        }
-
-        fetchCache();
-        setInterval(fetchCache, 10);
-    </script>
-</body>
+        {{-- Include compiled CSS and JS (Laravel Mix) --}}
+        @if (file_exists(public_path('mix-manifest.json')))
+            <link rel="stylesheet" href="{{ mix('css/fake-sms.css') }}">
+            <script src="{{ mix('js/app.js') }}" defer></script>
+        @else
+            <link rel="stylesheet" href="{{ asset('css/fake-sms.css') }}">
+            <script src="{{ asset('js/app.js') }}" defer></script>
+        @endif
+    </body>
 </html>
