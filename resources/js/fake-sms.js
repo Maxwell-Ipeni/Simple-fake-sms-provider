@@ -89,5 +89,5 @@ document.addEventListener('DOMContentLoaded', function(){
     // initial
     applyMode();
     refresh();
-    setInterval(refresh, 2500);
+    setInterval(refresh, 2000);
 });

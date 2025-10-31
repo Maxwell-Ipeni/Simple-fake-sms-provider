@@ -86,6 +86,19 @@ class SmsSimulatorController extends Controller
             'timestamp' => $message['timestamp'],
         ]);
 
+        // persist last callback result to cache for UI to display callback status
+        try {
+            \Illuminate\Support\Facades\Cache::put('sms:last_callback', [
+                'delivered' => (bool) ($result['delivered'] ?? false),
+                'error' => $result['error'] ?? null,
+                'url' => config('fake_sms.callback_url'),
+                'timestamp' => now()->toIso8601String(),
+            ], now()->addMinutes(60));
+        } catch (\Exception $e) {
+            // don't block primary flow if caching fails
+            report($e);
+        }
+
         $resp = ['status' => 'ok', 'delivered' => (bool) ($result['delivered'] ?? false)];
         if (!empty($result['error'])) {
             $resp['error'] = $result['error'];
@@ -127,6 +140,13 @@ class SmsSimulatorController extends Controller
             'messages' => $messages,
             'timestamp' => now()->toIso8601String(),
         ];
+
+        // include last callback metadata for UI convenience
+        try {
+            $payload['callback'] = \Illuminate\Support\Facades\Cache::get('sms:last_callback');
+        } catch (\Exception $e) {
+            $payload['callback'] = null;
+        }
 
         return response()->json($payload, 200);
     }
@@ -172,6 +192,13 @@ class SmsSimulatorController extends Controller
                     'timestamp' => now()->toIso8601String(),
                 ];
 
+                // include last callback metadata so SSE clients can update UI
+                try {
+                    $payload['callback'] = \Illuminate\Support\Facades\Cache::get('sms:last_callback');
+                } catch (\Exception $e) {
+                    $payload['callback'] = null;
+                }
+
                 $json = json_encode($payload);
                 if ($json !== $lastPayload) {
                     echo "data: {$json}\n\n";
@@ -191,8 +218,8 @@ class SmsSimulatorController extends Controller
                     break;
                 }
 
-                // small sleep to avoid busy loop — increased to reduce CPU cost per connection
-                sleep(3);
+                // small sleep to avoid busy loop — keep short so clients see updates quickly
+                sleep(1);
             }
         }, 200, [
             'Content-Type' => 'text/event-stream',

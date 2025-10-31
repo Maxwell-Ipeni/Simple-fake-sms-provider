@@ -53739,7 +53739,6 @@ if(false) {}
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
-// Minimal JS entry: load bootstrap and the React app entry.
 // This avoids pulling Vue into the build (the project uses a React component at resources/js/app.jsx).
 __webpack_require__(/*! ./bootstrap */ "./resources/js/bootstrap.js");
 
@@ -53849,14 +53848,14 @@ function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArra
 function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
 function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
 function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(r); }
-function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.value; } catch (n) { return void e(n); } i.done ? t(u) : Promise.resolve(u).then(r, o); }
-function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
 function _slicedToArray(r, e) { return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest(); }
 function _nonIterableRest() { throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
 function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
 function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
 function _iterableToArrayLimit(r, l) { var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (null != t) { var e, n, i, u, a = [], f = !0, o = !1; try { if (i = (t = t.call(r)).next, 0 === l) { if (Object(t) !== t) return; f = !1; } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0); } catch (r) { o = !0, n = r; } finally { try { if (!f && null != t["return"] && (u = t["return"](), Object(u) !== u)) return; } finally { if (o) throw n; } } return a; } }
 function _arrayWithHoles(r) { if (Array.isArray(r)) return r; }
+function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.value; } catch (n) { return void e(n); } i.done ? t(u) : Promise.resolve(u).then(r, o); }
+function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
 
 function formatTime(ts) {
   if (!ts) return '';
@@ -53869,6 +53868,51 @@ function formatTime(ts) {
   } catch (e) {
     return ts;
   }
+}
+
+// small helper to avoid hanging fetches
+function fetchWithTimeout(_x) {
+  return _fetchWithTimeout.apply(this, arguments);
+}
+function _fetchWithTimeout() {
+  _fetchWithTimeout = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3(resource) {
+    var options,
+      timeout,
+      controller,
+      signal,
+      opts,
+      id,
+      res,
+      _args3 = arguments;
+    return _regenerator().w(function (_context3) {
+      while (1) switch (_context3.p = _context3.n) {
+        case 0:
+          options = _args3.length > 1 && _args3[1] !== undefined ? _args3[1] : {};
+          timeout = _args3.length > 2 && _args3[2] !== undefined ? _args3[2] : 5000;
+          controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+          signal = controller ? controller.signal : undefined;
+          opts = signal ? Object.assign({}, options, {
+            signal: signal
+          }) : options;
+          if (controller) id = setTimeout(function () {
+            return controller.abort();
+          }, timeout);
+          _context3.p = 1;
+          _context3.n = 2;
+          return fetch(resource, opts);
+        case 2:
+          res = _context3.v;
+          return _context3.a(2, res);
+        case 3:
+          _context3.p = 3;
+          if (controller) clearTimeout(id);
+          return _context3.f(3);
+        case 4:
+          return _context3.a(2);
+      }
+    }, _callee3, null, [[1,, 3, 4]]);
+  }));
+  return _fetchWithTimeout.apply(this, arguments);
 }
 function FakeSms() {
   var _useState = Object(react__WEBPACK_IMPORTED_MODULE_0__["useState"])('recv'),
@@ -53915,22 +53959,26 @@ function FakeSms() {
           case 0:
             _context.p = 0;
             _context.n = 1;
-            return fetch('/api/cache-watch');
+            return fetchWithTimeout('/api/cache-watch', {}, 5000);
           case 1:
             r = _context.v;
             _context.n = 2;
             return r.json();
           case 2:
             j = _context.v;
-            console.debug('cache-watch payload', j);
+            // minimal logging in dev
+            // console.debug('cache-watch payload', j);
             setMessages(j.messages || []);
             setCacheCount((_j$count2 = j.count) !== null && _j$count2 !== void 0 ? _j$count2 : j.messages ? j.messages.length : 0);
+            // pick up callback status if present
+            setCallbackInfo(j.callback || null);
             _context.n = 4;
             break;
           case 3:
             _context.p = 3;
             _t = _context.v;
-            console.error(_t);
+            // don't spam console in production -- keep a single informative message
+            console.warn('refresh failed', _t && _t.message ? _t.message : _t);
           case 4:
             return _context.a(2);
         }
@@ -53950,12 +53998,13 @@ function FakeSms() {
             num = '+123456' + Math.floor(Math.random() * 900 + 100);
             text = 'Received! ' + ['We\'re here to help.', 'Hello!', 'Thanks, got it.'][Math.floor(Math.random() * 3)];
             _context2.p = 1;
+            // protect trigger from hanging with a short timeout
             console.debug('trigger sending', {
               number: num,
               text: text
             });
             _context2.n = 2;
-            return fetch('/api/get-message', {
+            return fetchWithTimeout('/api/get-message', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'
@@ -53964,7 +54013,7 @@ function FakeSms() {
                 number: num,
                 text: text
               })
-            });
+            }, 4000);
           case 2:
             res = _context2.v;
             _context2.p = 3;
@@ -54027,10 +54076,10 @@ function FakeSms() {
   Object(react__WEBPACK_IMPORTED_MODULE_0__["useEffect"])(function () {
     refresh();
     if (!sseActive) {
-      // polling fallback: lower frequency to reduce client/server load
+      // polling fallback: use a short interval so UI stays responsive until SSE attaches
       var t = setInterval(function () {
-        return refresh();
-      }, 20000);
+        refresh();
+      }, 2000);
       return function () {
         clearInterval(t);
       };
@@ -54042,10 +54091,26 @@ function FakeSms() {
   // SSE: try to open an EventSource to receive push updates from the server.
   Object(react__WEBPACK_IMPORTED_MODULE_0__["useEffect"])(function () {
     if (!window.EventSource) return; // not supported
+    // avoid using long-lived SSE connections on localhost dev servers
+    // (php artisan serve or built-in PHP server can block other requests)
     try {
+      if (location && (location.hostname === '127.0.0.1' || location.hostname === 'localhost')) {
+        console.info('Skipping SSE on localhost to avoid blocking dev server; using polling instead');
+        setSseActive(false);
+        return;
+      }
       var es = new EventSource('/api/sse');
       esRef.current = es;
+      // if SSE doesn't open within a short timeout, fallback to polling
+      var openTimeout = setTimeout(function () {
+        try {
+          es.close();
+        } catch (e) {}
+        if (esRef.current === es) esRef.current = null;
+        setSseActive(false);
+      }, 3500);
       es.onopen = function () {
+        clearTimeout(openTimeout);
         setSseActive(true);
       };
       es.onmessage = function (e) {
@@ -54054,6 +54119,8 @@ function FakeSms() {
           var j = JSON.parse(e.data || '{}');
           if (j.messages) setMessages(j.messages);
           setCacheCount((_j$count = j.count) !== null && _j$count !== void 0 ? _j$count : j.messages ? j.messages.length : 0);
+          // also pick up callback metadata from SSE
+          if (j.callback) setCallbackInfo(j.callback);
         } catch (err) {
           console.error('Invalid SSE payload', err);
         }

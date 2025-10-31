@@ -5,10 +5,26 @@ function formatTime(ts){
   try{ const d = new Date(ts); return d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); }catch(e){ return ts }
 }
 
+// small helper to avoid hanging fetches
+async function fetchWithTimeout(resource, options = {}, timeout = 5000) {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const signal = controller ? controller.signal : undefined;
+  const opts = signal ? Object.assign({}, options, { signal }) : options;
+  let id;
+  if (controller) id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(resource, opts);
+    return res;
+  } finally {
+    if (controller) clearTimeout(id);
+  }
+}
+
 export default function FakeSms(){
   const [mode, setMode] = useState('recv');
   const [messages, setMessages] = useState([]);
   const [cacheCount, setCacheCount] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [autoTrigger, setAutoTrigger] = useState(true);
   const [sseActive, setSseActive] = useState(false);
   const [callbackInfo, setCallbackInfo] = useState(null);
@@ -21,21 +37,30 @@ export default function FakeSms(){
   const prevCountRef = useRef(0);
 
   async function refresh(){
+    setLoading(true);
     try{
-      const r = await fetch('/api/cache-watch');
+      const r = await fetchWithTimeout('/api/cache-watch', {}, 5000);
       const j = await r.json();
-      console.debug('cache-watch payload', j);
+      // minimal logging in dev
+      // console.debug('cache-watch payload', j);
       setMessages(j.messages || []);
       setCacheCount(j.count ?? (j.messages ? j.messages.length : 0));
-    }catch(e){ console.error(e) }
+      // pick up callback status if present
+      setCallbackInfo(j.callback || null);
+    }catch(e){
+      // don't spam console in production -- keep a single informative message
+      console.warn('refresh failed', e && e.message ? e.message : e);
+    }
+    finally{ setLoading(false); }
   }
 
   async function trigger(){
     const num = '+123456' + Math.floor(Math.random()*900 + 100);
     const text = 'Received! ' + ['We\'re here to help.','Hello!','Thanks, got it.'][Math.floor(Math.random()*3)];
     try{
+      // protect trigger from hanging with a short timeout
       console.debug('trigger sending', {number: num, text});
-      const res = await fetch('/api/get-message', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number:num,text:text})});
+      const res = await fetchWithTimeout('/api/get-message', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({number:num,text:text})}, 4000);
       // try to read the created message and update UI optimistically
       try{
         const j = await res.json();
@@ -67,8 +92,8 @@ export default function FakeSms(){
   useEffect(()=>{
     refresh();
     if (!sseActive){
-      // polling fallback: lower frequency to reduce client/server load
-      const t = setInterval(()=>refresh(), 20000);
+      // polling fallback: use a short interval so UI stays responsive until SSE attaches
+      const t = setInterval(()=>{ refresh(); }, 2000);
       return ()=>{ clearInterval(t); };
     }
     // when SSE is active we rely on push updates
@@ -78,10 +103,24 @@ export default function FakeSms(){
   // SSE: try to open an EventSource to receive push updates from the server.
   useEffect(()=>{
     if (!window.EventSource) return; // not supported
+    // avoid using long-lived SSE connections on localhost dev servers
+    // (php artisan serve or built-in PHP server can block other requests)
     try{
+      if (location && (location.hostname === '127.0.0.1' || location.hostname === 'localhost')) {
+        console.info('Skipping SSE on localhost to avoid blocking dev server; using polling instead');
+        setSseActive(false);
+        return;
+      }
       const es = new EventSource('/api/sse');
       esRef.current = es;
+      // if SSE doesn't open within a short timeout, fallback to polling
+      let openTimeout = setTimeout(()=>{
+        try{ es.close(); }catch(e){}
+        if(esRef.current === es) esRef.current = null;
+        setSseActive(false);
+      }, 3500);
       es.onopen = ()=>{
+        clearTimeout(openTimeout);
         setSseActive(true);
       };
       es.onmessage = (e)=>{
@@ -89,6 +128,8 @@ export default function FakeSms(){
           const j = JSON.parse(e.data || '{}');
           if(j.messages) setMessages(j.messages);
           setCacheCount(j.count ?? (j.messages ? j.messages.length : 0));
+          // also pick up callback metadata from SSE
+          if(j.callback) setCallbackInfo(j.callback);
         }catch(err){ console.error('Invalid SSE payload', err) }
       };
       es.onerror = (err)=>{
@@ -111,7 +152,7 @@ export default function FakeSms(){
     if(autoTrigger){
       if(!autoRef.current){
         // increase auto-trigger interval to reduce request rate
-        autoRef.current = setInterval(()=>{ trigger().catch(()=>{}); }, 30000);
+        autoRef.current = setInterval(()=>{ trigger().catch(()=>{}); }, 2000);
       }
     } else {
       if(autoRef.current){ clearInterval(autoRef.current); autoRef.current = null }
@@ -215,9 +256,12 @@ export default function FakeSms(){
         <div className="column" data-column="sent">
           <div className="subtitle">Sent Messages To /send-message <button className="small-link" onClick={()=>viewFirst('sent')}>View First</button></div>
           <div className="panel">
-            <div className="message-list" ref={sentListRef}>
-              {sentMessages.map((m,idx)=> (
-                <div className="message" key={'s-'+idx}>
+                {loading && sentMessages.length === 0 ? (
+                  <div style={{padding:12,color:'#64748b'}}>Loading messages...</div>
+                ) : (
+                  <div className="message-list" ref={sentListRef}>
+                  {sentMessages.map((m,idx)=> (
+                    <div className="message" key={'s-'+idx}>
                   <div className="m-left">
                     <div className="to">To: {m.number}</div>
                     <div className="from">From: TestApp</div>
@@ -232,7 +276,8 @@ export default function FakeSms(){
                   <div className="m-right">{formatTime(m.timestamp)}</div>
                 </div>
               ))}
-            </div>
+                  </div>
+                )}
           </div>
         </div>
 
@@ -240,7 +285,10 @@ export default function FakeSms(){
         <div className="column" data-column="recv">
           <div className="subtitle">Simulated Incoming Responses From /get-message <button className="small-link" onClick={()=>viewFirst('recv')}>View First</button></div>
           <div className="panel">
-            <div className="message-list" ref={recvListRef}>
+            {loading && recvDisplay.length === 0 ? (
+              <div style={{padding:12,color:'#64748b'}}>Loading messages...</div>
+            ) : (
+              <div className="message-list" ref={recvListRef}>
               {recvDisplay.map((m,idx)=> (
                 <div className={"message" + (m.placeholder ? ' placeholder' : '')} key={m.id || ('r-'+idx)}>
                   <div className="m-left">
@@ -257,14 +305,15 @@ export default function FakeSms(){
                   <div className="m-right">{formatTime(m.timestamp)}</div>
                 </div>
               ))}
+              </div>
+            )}
 
-              {callbackInfo && (
-                <div className="callback">
-                  <div className="status-small">Status: Pushed to Callback</div>
-                  <div>Callback URL: <a href={callbackInfo.url} target="_blank" rel="noreferrer">{callbackInfo.url}</a></div>
-                </div>
-              )}
-            </div>
+            {callbackInfo && (
+              <div className="callback">
+                <div className="status-small">Status: Pushed to Callback</div>
+                <div>Callback URL: <a href={callbackInfo.url} target="_blank" rel="noreferrer">{callbackInfo.url}</a></div>
+              </div>
+            )}
           </div>
         </div>
       </main>

@@ -51,6 +51,10 @@
         .callback{background:#fff3e0;padding:10px;border-radius:8px;margin-top:8px;color:#0b1220}
         .callback a{color:#0b63ff;text-decoration:underline}
 
+    /* fixed callback status box shown above footer on the left */
+    .callback-fixed{position:fixed;left:14px;bottom:76px;background:#fff3e0;color:#0b1220;border-radius:8px;padding:10px 12px;box-shadow:0 8px 20px rgba(2,6,23,0.4);max-width:360px;font-size:13px;display:none;z-index:9999}
+    .callback-fixed a{color:#0b63ff}
+
         footer.status{position:fixed;left:0;right:0;bottom:10px;margin:auto;max-width:var(--max-width);background:rgba(2,6,23,0.6);color:#cbd5e1;border-radius:12px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
         .dot{width:10px;height:10px;border-radius:50%;background:#10b981;margin-right:8px}
 
@@ -66,15 +70,18 @@
 <body>
 <div id="app"></div>
 
+<!-- callback status box (populated by JS) -->
+<div id="callbackStatus" class="callback-fixed" aria-live="polite"></div>
+
 <footer class="status">
     <div style="display:flex;align-items:center"><div class="dot"></div>System Status: <span style="margin-left:8px">Running</span></div>
     <div>Cache Size: <span id="cacheSize">0</span> entries</div>
 </footer>
 
     @if (file_exists(public_path('mix-manifest.json')))
-        <script src="{{ mix('js/app.js') }}"></script>
+        <script defer src="{{ mix('js/app.js') }}"></script>
     @elseif (file_exists(public_path('js/app.js')))
-        <script src="{{ asset('js/app.js') }}"></script>
+        <script defer src="{{ asset('js/app.js') }}"></script>
     @else
         <script>
         // Minimal runtime fallback: renders a simple message list and polls /api/cache-watch
@@ -115,8 +122,25 @@
                 });
             }
 
+            function updateCallback(cb){
+                try{
+                    var el = document.getElementById('callbackStatus');
+                    if(!el) return;
+                    if(!cb){ el.style.display = 'none'; el.innerHTML = ''; return; }
+                    var html = '<div class="status-small">Status: ' + ((cb.delivered) ? 'Pushed to Callback' : 'Callback Failed') + '</div>';
+                    if(cb.url){ html += '<div style="margin-top:6px">Callback URL: <a href="'+cb.url+'" target="_blank" rel="noreferrer">'+cb.url+'</a></div>'; }
+                    if(cb.error){ html += '<div style="margin-top:6px;color:#7f1d1d">Error: '+(cb.error||'')+'</div>'; }
+                    el.innerHTML = html;
+                    el.style.display = 'block';
+                }catch(e){ console.warn('updateCallback error', e); }
+            }
+
             function load(){
-                fetch('/api/cache-watch').then(function(r){ return r.json(); }).then(function(json){ render(json.messages||[]); }).catch(function(e){ console.error(e); list.innerText = 'Could not load messages'; });
+                // fetch with a timeout so the fallback UI doesn't hang
+                var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+                var id;
+                if (controller) id = setTimeout(function(){ try{ controller.abort(); }catch(e){} }, 4000);
+                fetch('/api/cache-watch', controller ? { signal: controller.signal } : {}).then(function(r){ return r.json(); }).then(function(json){ if(controller) clearTimeout(id); render(json.messages||[]); updateCallback(json.callback || null); }).catch(function(e){ if(controller) clearTimeout(id); console.error(e); list.innerText = 'Could not load messages'; });
             }
 
             refresh.addEventListener('click', load);
