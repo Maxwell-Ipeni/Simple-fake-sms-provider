@@ -1,4 +1,3 @@
-// Minimal JS entry: load bootstrap and the React app entry.
 // This avoids pulling Vue into the build (the project uses a React component at resources/js/app.jsx).
 require('./bootstrap');
 
